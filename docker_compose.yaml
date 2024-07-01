@@ -1,0 +1,27 @@
+  grafana:
+    image: grafana/grafana-oss
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+     - GF_INSTALL_PLUGINS=grafana-clock-panel
+    ports:
+     - '3000:3000'
+    volumes:
+     - '$PWD/data:/var/lib/grafana'
+    depends_on:
+      - prometheus
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    restart: always
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./prometheus/prometheus.yml:/var/prometheus/prometheus.yml
+      - '$PWD/promdata:/var/prometheus'
+
+volumes:
+  grafana_storage:
+  prom_data:
+  prom_configs:
