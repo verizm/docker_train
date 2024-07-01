@@ -1,0 +1,46 @@
+
+services:
+
+  wordpress:
+    image: "wordpress:${WP_TAG}"
+    restart: always
+    ports:
+      - 8080:80
+    environment:
+      WORDPRESS_DB_HOST: ${PMA_HOST}
+      WORDPRESS_DB_USER: ${MYSQL_USER}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE}
+    volumes:
+      - wordpress:/var/www/html
+    depends_on:
+      - mysql
+
+  mysql:
+    image: "mysql:${MYSQL_TAG}"
+    restart: always
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  myadmin:
+    image: "phpmyadmin:${PMA_TAG}"
+    restart: always
+    ports:
+      - 1500:80
+    depends_on:
+      - mysql
+    environment:
+      PMA_HOST: ${PMA_HOST}
+
+volumes:
+  wordpress:
+  db:
