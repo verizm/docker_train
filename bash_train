@@ -1,0 +1,124 @@
+######## NGINX MONITORING
+отредактировать /etc/sudoers через visudo (делает бекап и проверки в отличие от vim)
+права на все  
+
+sudo vim /etc/crontab настрокйка общего crontab 
+* * * * * vera /home/vera/nginx_monitoring.sh >> /home/vera/logs/cron.logs 
+должна остаться пустая строка в файле 
+
+#! /bin/bash
+
+
+function print_status {
+	echo "STATUS: $(systemctl is-active nginx)"
+}
+
+if [[ "$(pidof nginx)" ]]
+   then	print_status
+
+
+else
+	sudo /etc/init.d/nginx restart
+	sleep 3
+	echo "$(nginx -c /usr/local/etc/nginx/nginx.conf -t)"
+	print_status
+fi
+
+
+########  IP DATA 
+
+#!/bin/bash
+
+PUBLIC_IP=$(curl -s 'https://2ip.ru/')
+
+echo "Public IP: $PUBLIC_IP"
+
+echo -e "Local IP:\n$(ip -i a | grep -E '(inet.*enp)' | awk '{print $2}' | cut -f1 -d'/')"
+
+####### USER OPTIONS
+
+#!/bin/bash
+
+user_exists(){
+       	id -u  "$USER" &>/dev/null
+	STATUS=$(echo $?)
+	if [[ "$STATUS" -ne "0" ]]; then
+		echo "$USER not exists."
+	fi
+	return "$STATUS"
+       }
+
+delete_user(){
+	USER_PROC=$(ps aux | grep "$USER" | grep -v "grep" | awk '{print $2, $11}')
+		echo "Check user process..."
+		echo -e "User $USER  process: \n$USER_PROC"
+		pkill -KILL -u "$USER"
+		userdel -r -f "$USER"
+		if [ -z $(less /etc/passwd | grep -E  "^$USER") ]; then
+		    echo "User was removed successfully."
+		else
+		   echo "Somthing wrong.Try to delete manually."
+		fi
+	}
+
+create_user(){
+		read -r -s -p "Enter users password: " $PASSWD
+		groupadd "$USER"
+                useradd -m -g "$USER" -p " $PASSWD"  -s /bin/bash "$USER"
+                chmod 700 /home/"$USER"
+                chown "$USER:$USER" /home/"$USER"
+		echo " "
+		echo "User $USER created successfully. Data: $(grep $USER: /etc/passwd)"
+	}
+#######################################################################################
+OPTION=$1
+USER=$2
+
+if [ -z "$USER" ]; then
+    echo "Not all params was not given."
+    echo "Set [-create|-delete|-change_pass] frist and user name second."
+    exit 1
+fi
+
+
+case "$OPTION" in
+	-create) if ! user_exists; then
+			create_user
+		fi
+		exit
+		;;
+
+	-delete) if user_exists; then
+			delete_user
+		fi
+		exit
+		;;
+	-change_pass)
+		passwd
+		exit
+		;;
+	*)
+		echo "Incorrect option name was given. Set [-create|-delete|-change_pass] and user name"
+		;;
+
+esac
+
+
+######## ОТППРАВКА ПИСЬМА 
+
+#!/bin/bash
+REALVALUE=$(df / | grep / | awk '{ print $5}' | sed 's/%//g')
+THRESHOLD=10
+
+if [ "$REALVALUE" -gt "$THRESHOLD" ] ; then
+    mail -s ' Disk space alert' veralazu@gmail.com << EOF
+Your root partition remaining free space is critically low. Used: $REALVALUE%
+EOF
+echo "Disk Space Alert, mail was send."
+fi
+
+
+
+
+
+
