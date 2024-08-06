@@ -118,6 +118,33 @@ echo "Disk Space Alert, mail was send."
 fi
 
 
+########## Рекурсивный обход директорий с удалением заданного файла
+
+#!/bin/bash
+
+defaul_dir=`pwd`
+file_name=$1
+directory=${2:-$defaul_dir}
+
+if [ $# -eq 0 ]; then
+      echo "run $0 with arguments: file for delete and directory"
+      echo "default directory `pwd`"
+      exit 1
+fi
+
+function remove_file(){
+	for i in $1/*; do
+	 [ "$(echo $i | awk -F/ '{print $NF}')" == "$file_name" ] && rm -f $i && 
+		echo "file $i was removed"
+
+	[ -d "$i" ] &&  remove_file $i
+	done
+}
+
+remove_file $directory
+
+
+
 
 
 
