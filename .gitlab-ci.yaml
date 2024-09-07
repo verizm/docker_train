@@ -1,0 +1,55 @@
+variables:
+  MARK: "smoke"
+  TESTS: ''
+  PARAMETRIZE: "4"
+  ALLURE_SERVER: http://localhost:8083/api
+
+
+stages:
+  - test
+  - report
+
+docker_job:
+  stage: test
+  tags:
+    - shell 
+    
+  script:
+    |
+    docker compose up -d --build
+    docker compose run -d autotests > conteiner_id.txt
+    docker exec -i $(cat conteiner_id.txt) pytest -n=$PARAMETRIZE -m $MARK /autotests
+    docker cp $(cat conteiner_id.txt):allure-results $CI_PROJECT_DIR  
+    docker compose down
+
+  
+  allow_failure: true
+  artifacts:
+    when: always
+    paths:
+      - allure-results
+    expire_in: 1 day
+
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+
+report_job:
+  stage: report
+  tags:
+    - shell
+  script:
+    |
+    curl --location --output artifacts.zip "http://gitlab.local/api/v4/projects/$CI_PROJECT_ID/jobs/artifacts/main/download?job=test&job_token=$CI_JOB_TOKEN"
+    ls -la $CI_PROJECT_DIR
+
+    echo "---UPLOAD RESULTS---"
+    RESULT_ID=`curl  --silent -X 'POST' "$ALLURE_SERVER/result" -H 'accept: */*' -H 'Content-Type: multipart/form-data' -F     'allureResults=@allure-results.zip;type=application/zip' | jq -r '.uuid'`
+
+    echo $RESULT_ID
+
+    echo "---GENERATE REPORT---"
+    data=`jo -p reportSpec=$(jo path[]=string executorInfo=$(jo name=string type=string url=string buildOrder=0 buildName=name    buildUrl=url reportName=string reportUrl=string)) results[]=$RESULT_ID  deleteResults=true`
+
+    echo "'$data'"
+    curl  --silent -X 'POST' "$ALLURE_SERVER/report" -H 'accept: */*' -H 'Content-Type: application/json' -d "'$data'"
